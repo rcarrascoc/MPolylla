@@ -12,6 +12,8 @@
 #include <omp.h>
 #include <algorithm> 
 
+//#define DEBUG
+
 // Here starts the "gpu" code!!!!!!!
 
 typedef int bit_vector_d;
@@ -67,7 +69,9 @@ inline bool is_frontier_edge_d(Triangulation &tr, bit_vector_d *max_edges, const
 }
 
 void label_phase(Triangulation &tr, bit_vector_d *max_edges, bit_vector_d *frontier_edges, int n){
+    #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: label_phase(n = " << n << ") llamado." << std::endl;
+    #endif
     #pragma omp parallel for
     for (int off = 0; off < n; off++){
         frontier_edges[off] = 0;
@@ -77,7 +81,9 @@ void label_phase(Triangulation &tr, bit_vector_d *max_edges, bit_vector_d *front
 }
 
 void label_edges_max_d(Triangulation &tr, bit_vector_d *output, int n_faces) {
+    #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: label_edges_max_d(n_faces = " << n_faces << ") llamado." << std::endl;
+    #endif
     #pragma omp parallel for
     for(int off = 0; off < n_faces; off++) {
         // tr.incident_halfedge(off) es 3*off
@@ -103,7 +109,9 @@ inline bool is_seed_edge_d(Triangulation &tr, bit_vector_d *max_edges, int e){
 
 // Modificado para usar 'int' como en GPolylla (en lugar de float)
 void seed_phase_d(Triangulation &tr, bit_vector_d *max_edges, int *seed_edges, int n_halfedges){
+    #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: seed_phase_d(n = " << n_halfedges << ") llamado." << std::endl;
+    #endif
     #pragma omp parallel for
     for (int off = 0; off < n_halfedges; off++){
         if(tr.is_interior_face(off) && is_seed_edge_d(tr, max_edges, off))
@@ -126,7 +134,9 @@ void seed_phase_d(Triangulation &tr, bit_vector_d *max_edges, int *seed_edges, i
  */
 template <typename T_out, typename T_in>
 void scan_serial_omp(T_out *out, const T_in *in, int n) {
+    #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: Usando scan_serial_omp(n = " << n << ")..." << std::endl;
+    #endif
     if (n == 0) return;
     
     // El primer elemento de un scan exclusivo es siempre 0
@@ -155,7 +165,9 @@ void compaction_serial_omp(T *output,   // h_seed_edges_comp (int*)
                            V *auxiliary,  // h_seed_edges (int*)
                            int size) 
 {
+    #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: Usando compaction_serial_omp(n = " << size << ")..." << std::endl;
+    #endif
 
     if (size == 0) {
         *h_num = 0;
@@ -235,7 +247,9 @@ inline int search_prev_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier
 }
 
 void travel_phase_d(Triangulation &tr, Triangulation &output_tr, bit_vector_d *max_edges, bit_vector_d *frontier_edges, int n_halfedges){
+    #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: travel_phase_d(n = " << n_halfedges << ") llamado." << std::endl;
+    #endif
     
     // Copiamos los halfedges de 'tr' (entrada) a 'output_tr' (salida)
     #pragma omp parallel for
@@ -287,7 +301,9 @@ inline int count_frontier_edges_d(Triangulation &tr, bit_vector_d *frontier_edge
 
 // new repair phase (modificado para usar int*)
 void label_extra_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges, int *seed_edges, int n_vertices){
+    #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: label_extra_frontier_edge_d(n_vertices = " << n_vertices << ") llamado." << std::endl;
+    #endif
     #pragma omp parallel for
     for (int v = 0; v < n_vertices; v++){
 
@@ -313,7 +329,9 @@ void label_extra_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges
 
 // Modificado para usar int*
 void search_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges,  int *seed_edges, int n_halfedges) {
+    #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: search_frontier_edge_d(n = " << n_halfedges << ") llamado." << std::endl;
+    #endif
     #pragma omp parallel for
     for (int off = 0; off < n_halfedges; off++){
         if(seed_edges[off] == 1){
@@ -333,7 +351,9 @@ void search_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges,  in
 
 // Modificado para usar int*
 void overwrite_seed_d(Triangulation &tr, int *seed_edges, int n_halfedges){
+    #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: overwrite_seed_d(n = " << n_halfedges << ") llamado." << std::endl;
+    #endif
     #pragma omp parallel for
     for (int i = 0; i < n_halfedges; i++){        
         if(seed_edges[i] == 1){
