@@ -157,24 +157,63 @@ void compaction_serial_omp(T *output,   // h_seed_edges_comp (int*)
 {
     std::cout << "[DEBUG] kernel_omp.h: Usando compaction_serial_omp(n = " << size << ")..." << std::endl;
 
-    // Esta es la lógica serial (y correcta) de la función que proporcionaste.
-    int j=0;
-    for (int i = 0; i < size; i++)
+    if (size == 0) {
+        *h_num = 0;
+        return;
+    }
+
+    // Parallel compaction: 2-phase (per-thread counts + prefix + parallel scatter)
+    int max_threads = omp_get_max_threads();
+    std::vector<int> local_counts(max_threads, 0);
+    int nthreads = 1;
+
+    // Phase 1: per-thread counting
+    #pragma omp parallel
     {
-        // if (auxiliary[i] == 1)
-        if (auxiliary[i] == 1) // V es int
-        {
-            // output[j] = input[i]; (En GPolylla, guardamos el ÍNDICE 'i')
-            output[j] = i; 
-            j++;
+        int tid = omp_get_thread_num();
+        int tcount = omp_get_num_threads();
+        int start = (size * tid) / tcount;
+        int end   = (size * (tid + 1)) / tcount;
+
+        int cnt = 0;
+        for (int i = start; i < end; ++i) {
+            if (auxiliary[i] == 1) ++cnt;
+        }
+        local_counts[tid] = cnt;
+
+        #pragma omp barrier
+        #pragma omp single
+        nthreads = omp_get_num_threads();
+    }
+
+    // Compute exclusive prefix (offsets) in parallel (each thread sums previous local_counts)
+    std::vector<int> offsets(nthreads, 0);
+    #pragma omp parallel for
+    for (int t = 0; t < nthreads; ++t) {
+        int s = 0;
+        for (int i = 0; i < t; ++i) s += local_counts[i];
+        offsets[t] = s;
+    }
+    int total = offsets[nthreads - 1] + local_counts[nthreads - 1];
+    *h_num = total;
+
+    // Phase 2: parallel scatter using per-thread offsets
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        int tcount = omp_get_num_threads();
+        int start = (size * tid) / tcount;
+        int end   = (size * (tid + 1)) / tcount;
+
+        int write_pos = offsets[tid];
+        for (int i = start; i < end; ++i) {
+            if (auxiliary[i] == 1) {
+                output[write_pos++] = static_cast<T>(i);
+            }
         }
     }
-    *h_num = j; // Devuelve el conteo total
 }
 
-// -------------------------------------------------------------------
-// FIN: Funciones de Scan/Compaction
-// -------------------------------------------------------------------
 
 
 inline int search_next_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges, const int e) {

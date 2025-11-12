@@ -142,12 +142,12 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
             std::cout << "[DEBUG] mpolylla_omp.h: run: 7.2. " << m_polygons << " polígonos (seeds) contados." << std::endl;
             printf ("[TIME] Compaction phase (GPolylla 9): %f\n", (float) t_label_seed_compaction_d);
             
-            // print frotier_edges for debug
+            /*// print frotier_edges for debug
             std::cout << "[DEBUG] h_seed_edges_comp after compaction:" << std::endl;
             for(int i = 0; i < m_polygons; i++){
                 std::cout << h_seed_edges_comp[i] << " ";
             }
-            std::cout << std::endl;
+            std::cout << std::endl; //*/
             
 
 
