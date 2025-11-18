@@ -107,7 +107,9 @@ public:
 
     //Read node file in .node format and nodes in point vector
     void read_nodes_from_file(std::string name){
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::read_nodes_from_file(" << name << ") llamado." << std::endl;
+#endif
         std::string line;
         std::ifstream nodefile(name);
         double a1, a2, a3, a4;
@@ -130,14 +132,22 @@ public:
             }  
         }
         else 
-            std::cout << "Unable to open node file"; 
+        {
+#ifdef DEBUG
+            std::cout << "Unable to open node file";
+#endif
+        }
         nodefile.close();
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::read_nodes_from_file: Fin." << std::endl;
+#endif
     }
 
     //Read triangle file in .ele format and stores it in faces vector
     std::vector<int> read_triangles_from_file(std::string name){
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::read_triangles_from_file(" << name << ") llamado." << std::endl;
+#endif
         std::vector<int> faces;
         std::string line;
         std::ifstream elefile(name);
@@ -160,15 +170,23 @@ public:
             }
         }
         else 
-            std::cout << "Unable to open ele file"; 
+        {
+#ifdef DEBUG
+            std::cout << "Unable to open ele file";
+#endif
+        }
         elefile.close();
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::read_triangles_from_file: Fin." << std::endl;
+#endif
         return faces;
     }
 
     //Read node file in .node format and nodes in point vector
     std::vector<int>  read_neigh_from_file(std::string name){
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::read_neigh_from_file(" << name << ") llamado." << std::endl;
+#endif
         std::vector<int> neighs;
         std::string line;
         std::ifstream neighfile(name);
@@ -184,7 +202,9 @@ public:
             while (std::getline(neighfile, line))
             {
                 if(line[0] == '#'){
+#ifdef DEBUG
                     std::cout<<line<<std::endl;
+#endif
                     continue;
                 }
                 std::istringstream(line) >> a1 >> a2 >> a3 >> a4;
@@ -209,14 +229,22 @@ public:
             }
         }
         else 
-            std::cout << "Unable to open neight file"; 
+        {
+#ifdef DEBUG
+            std::cout << "Unable to open neight file";
+#endif
+        }
         neighfile.close();
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::read_neigh_from_file: Fin." << std::endl;
+#endif
         return neighs;
     }
 
   void construct_interior_halfEdges_from_faces(std::vector<int> &faces){
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::construct_interior_halfEdges_from_faces llamado." << std::endl;
+#endif
         //std::cout << "0. aca "<< std::endl;	
         auto hash_for_pair = [n = 3*this->n_faces](const std::pair<int, int>& p) {
             return std::hash<int>{}(p.first)*n + std::hash<int>{}(p.second);
@@ -262,14 +290,18 @@ public:
                 }
             }
         }
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::construct_interior_halfEdges_from_faces: Fin." << std::endl;
+#endif
     }
 
     
     //Generate interior halfedges using faces and neigh vectors
     //also associate each vertex with an incident halfedge
     void construct_interior_halfEdges_from_faces_and_neighs(std::vector<int> &faces, std::vector<int> &neighs){
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::construct_interior_halfEdges_from_faces_and_neighs llamado." << std::endl;
+#endif
         int neigh, origin, target;
         for(std::size_t i = 0; i < n_faces; i++){
             for(std::size_t j = 0; j < 3; j++){
@@ -298,14 +330,18 @@ public:
                 Vertices[he.origin].incident_halfedge = i*3 + j;
             }
         }
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::construct_interior_halfEdges_from_faces_and_neighs: Fin." << std::endl;
+#endif
     }
 
     
     //Generate exterior halfedges
     //This takes  n + k time where n is the number of vertices and k is the number of border edges
     void construct_exterior_halfEdges(){
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::construct_exterior_halfEdges llamado." << std::endl;
+#endif
 
         //search interior edges labed as border, generates exterior edges
         //with the origin and target inverted and add at the of HalfEdges vector
@@ -341,43 +377,53 @@ public:
             }
         }
         this->n_halfedges = HalfEdges.size();
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::construct_exterior_halfEdges: Fin. Nuevo n_halfedges = " << this->n_halfedges << std::endl;
+#endif
     }
 
 
     //Read the mesh from a file in OFF format
     std::vector<int> read_OFFfile(std::string name){
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::read_OFFfile(" << name << ") llamado." << std::endl;
+#endif
         //Read the OFF file
         std::vector<int> faces;
-		std::string line;
-		std::ifstream offfile(name);
-		double a1, a2, a3;
-		std::string tmp;
-		if (offfile.is_open())
-		{
+        std::string line;
+        std::ifstream offfile(name);
+        double a1, a2, a3;
+        std::string tmp;
+        if (offfile.is_open())
+        {
+#ifdef DEBUG
             std::cout << "[DEBUG] Triangulation::read_OFFfile: Archivo abierto." << std::endl;
+#endif
             //Check first line is a OFF file
-			while (std::getline(offfile, line)){ //add check boundary vertices flag
+            while (std::getline(offfile, line)){ //add check boundary vertices flag
                 std::istringstream(line) >> tmp;
                 //std::cout<<"tmp: "<<tmp<<std::endl;
-				if (tmp[0] != '#' && !isWhitespace(line))
-				{
-					if(tmp[0] == 'O' && tmp[1] == 'F' && tmp[2] == 'F') //Check if the format is OFF
+                if (tmp[0] != '#' && !isWhitespace(line))
+                {
+                    if(tmp[0] == 'O' && tmp[1] == 'F' && tmp[2] == 'F') //Check if the format is OFF
                         break;
                     else{
+#ifdef DEBUG
                         std::cout<<"The file is not an OFF file"<<std::endl;
+#endif
                         exit(0);
                     }
-				}
-			}
+                }
+            }
+#ifdef DEBUG
             std::cout << "[DEBUG] Triangulation::read_OFFfile: 'OFF' header encontrado." << std::endl;
+#endif
 
             //Read the number of vertices and faces
             while (std::getline(offfile, line)){ //add check boundary vertices flag
                 std::istringstream(line) >> tmp;
                // std::cout<<"tmp: "<<tmp<<std::endl;
-				if (tmp[0] != '#' && !isWhitespace(line))
+                if (tmp[0] != '#' && !isWhitespace(line))
                 { 
                             std::istringstream(line) >> this->n_vertices >> this->n_faces;
                             this->Vertices.reserve(this->n_vertices);
@@ -385,39 +431,45 @@ public:
                             break;
                             
                 }
-			}
+            }
+#ifdef DEBUG
             std::cout << "[DEBUG] Triangulation::read_OFFfile: Cabecera leida: V=" << this->n_vertices << " F=" << this->n_faces << std::endl;
+#endif
 
             //Read vertices
             int index = 0;
-			while (index < n_vertices && std::getline(offfile, line) )
-			{
-				std::istringstream(line) >> tmp;
+            while (index < n_vertices && std::getline(offfile, line) )
+            {
+                std::istringstream(line) >> tmp;
                 // std::cout<<"tmp: "<<tmp<<std::endl;
-				if (tmp[0] != '#' && !isWhitespace(line))
-				{
-					std::istringstream(line) >> a1 >> a2 >> a3;
-					vertex ve;
+                if (tmp[0] != '#' && !isWhitespace(line))
+                {
+                    std::istringstream(line) >> a1 >> a2 >> a3;
+                    vertex ve;
                     ve.x =  a1;
                     ve.y =  a2;
                     this->Vertices.push_back(ve);
                     index++;
-				}
-			}
+                }
+            }
+#ifdef DEBUG
             std::cout << "[DEBUG] Triangulation::read_OFFfile: " << index << " vertices leídos." << std::endl;
+#endif
 
             //Read faces
             int lenght, t1, t2, t3;
             index = 0;
-			while (index < n_faces && std::getline(offfile, line) )
-			{
-				std::istringstream(line) >> tmp;
+            while (index < n_faces && std::getline(offfile, line) )
+            {
+                std::istringstream(line) >> tmp;
                 // std::cout<<"tmp: "<<tmp<<std::endl;
-				if (tmp[0] != '#' && !isWhitespace(line))
-				{
+                if (tmp[0] != '#' && !isWhitespace(line))
+                {
                     std::istringstream(line) >> lenght >> t1 >> t2 >> t3;
                     if (lenght != 3) {
+#ifdef DEBUG
                          std::cerr << "Error: El archivo .off no está triangulado. Se encontró una cara con " << lenght << " vértices." << std::endl;
+#endif
                          exit(1);
                     }
                     faces.push_back(t1);
@@ -425,14 +477,22 @@ public:
                     faces.push_back(t3);
           //          std::cout<<"face "<<index<<": "<<t1<<" "<<t2<<" "<<t3<<std::endl;
                     index++;
-				}
-			}
+                }
+            }
+#ifdef DEBUG
             std::cout << "[DEBUG] Triangulation::read_OFFfile: " << index << " caras leídas." << std::endl;
-		}
-		else 
-				std::cout << "Unable to open OFF file"; 
-		offfile.close();
+#endif
+        }
+        else 
+        {
+#ifdef DEBUG
+                std::cout << "Unable to open OFF file";
+#endif
+        }
+        offfile.close();
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::read_OFFfile: Fin." << std::endl;
+#endif
         return faces;
     }
 
@@ -441,20 +501,30 @@ public:
 
     //default constructor
     Triangulation() {
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::Constructor() (default) llamado." << std::endl;
+#endif
     }
 
     //Constructor from file
     Triangulation(std::string node_file, std::string ele_file, std::string neigh_file) {
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::Constructor(node, ele, neigh) llamado." << std::endl;
+#endif
         std::vector<int> faces;
         std::vector<int> neighs;
+#ifdef DEBUG
         std::cout<<"Reading node file"<<std::endl;
+#endif
         read_nodes_from_file(node_file);
         //fusionar estos dos métodos
+#ifdef DEBUG
         std::cout<<"Reading ele file"<<std::endl;
+#endif
         faces = read_triangles_from_file(ele_file);
+#ifdef DEBUG
         std::cout<<"Reading neigh file"<<std::endl;
+#endif
         neighs = read_neigh_from_file(neigh_file);
 
         //calculation of the time to build the data structure
@@ -468,11 +538,15 @@ public:
         //std::cout<<"Constructing triangles"<<std::endl;
         auto t_end = std::chrono::high_resolution_clock::now();
         t_triangulation_generation = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::Constructor(node, ele, neigh): Fin. Tiempo: " << t_triangulation_generation << "ms" << std::endl;
+#endif
     }
 
     Triangulation(std::string OFF_file){
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::Constructor(OFF_file=" << OFF_file << ") llamado." << std::endl;
+#endif
         std::vector<int> faces = read_OFFfile(OFF_file);
 
         auto t_start = std::chrono::high_resolution_clock::now();
@@ -482,12 +556,16 @@ public:
 
         auto t_end = std::chrono::high_resolution_clock::now();
         t_triangulation_generation = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::Constructor(OFF_file): Fin. Tiempo: " << t_triangulation_generation << "ms" << std::endl;
+#endif
     }
 
 
     Triangulation(int size){
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::Constructor(size=" << size << ") llamado." << std::endl;
+#endif
 
         int n = size;
         int sqrt_n = (int)sqrt(size);
@@ -502,7 +580,9 @@ public:
 
         //int estimado = 2*(n-sqrt_n);
 
+#ifdef DEBUG
         std::cout<<"Generating points  "<<std::endl;
+#endif
         for (int i = 0; i < sqrt_n; i++)
             for (int j = 0; j < sqrt_n; j++)
             {
@@ -512,7 +592,9 @@ public:
                 this->Vertices.push_back(ve);
             }
         
+#ifdef DEBUG
         std::cout<<"Generating triangles "<<std::endl;
+#endif
         for (int i = 0; i < n-sqrt_n; i++)
         {
             if (i % sqrt_n != sqrt_n-1){
@@ -529,7 +611,9 @@ public:
         n_faces = faces.size()/3;
         //std::cout<<"estimao "<< n_faces<<" final "<<n_faces<<std::endl;
 
+#ifdef DEBUG
         std::cout<<"Constructing halfedges "<<std::endl;
+#endif
         auto t_start = std::chrono::high_resolution_clock::now();
 
         
@@ -540,14 +624,18 @@ public:
 
         auto t_end = std::chrono::high_resolution_clock::now();
         t_triangulation_generation = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+#ifdef DEBUG
         std::cout<<"Triangulation generation time: "<<t_triangulation_generation<<std::endl;
         std::cout << "[DEBUG] Triangulation::Constructor(size): Fin." << std::endl;
+#endif
     }
 
 
     // Copy constructor
     Triangulation(const Triangulation &t) {
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::Copy Constructor llamado." << std::endl;
+#endif
         this->n_vertices = t.n_vertices;
         this->n_faces = t.n_faces;
         this->n_halfedges = t.n_halfedges;
@@ -558,15 +646,21 @@ public:
         // gestionados por la lógica 'main' y 'MPolylla'
         this->seed_edges = nullptr;
         this->comp_sec_output_seed = nullptr;
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::Copy Constructor: Fin." << std::endl;
+#endif
     }
 
     // destructor
     ~Triangulation() {
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::Destructor ~Triangulation() llamado." << std::endl;
+#endif
         Vertices.clear();
         HalfEdges.clear();
+#ifdef DEBUG
         std::cout << "[DEBUG] Triangulation::Destructor ~Triangulation: Fin." << std::endl;
+#endif
     }
 
     double get_triangulation_generation_time() {
@@ -792,15 +886,21 @@ public:
 // Función de E/S movida fuera de la clase para que main.cpp pueda usarla
 // (Basada en la versión anterior que te di)
 void write_triangulation_to_off(Triangulation &output, std::string filename){
+#ifdef DEBUG
     std::cout << "[DEBUG] triangulation.h: write_triangulation_to_off(filename='" << filename << "') llamado." << std::endl;
+#endif
     std::ofstream outFile(filename);
     if (!outFile.is_open()) {
+#ifdef DEBUG
         std::cerr << "Error: No se pudo crear el archivo de salida: " << filename << std::endl;
+#endif
         return;
     }
 
     // Contar polígonos (caras que no son de borde)
+#ifdef DEBUG
     std::cout << "[DEBUG] triangulation.h: write_triangulation_to_off: Contando polígonos..." << std::endl;
+#endif
     int n_polygons = 0;
     std::vector<bool> visited(output.n_halfedges, false);
     for(int i = 0; i < output.n_halfedges; i++){
@@ -814,23 +914,31 @@ void write_triangulation_to_off(Triangulation &output, std::string filename){
             } while (curr != i);
         }
     }
+#ifdef DEBUG
     std::cout << "[DEBUG] triangulation.h: write_triangulation_to_off: Polígonos contados: " << n_polygons << std::endl;
+#endif
 
     outFile << "OFF" << std::endl;
     outFile << output.n_vertices << " " << n_polygons << " 0" << std::endl;
 
     // Escribir vértices
+#ifdef DEBUG
     std::cout << "[DEBUG] triangulation.h: write_triangulation_to_off: Escribiendo " << output.n_vertices << " vértices..." << std::endl;
+#endif
     for(int i = 0; i < output.n_vertices; i++){
         outFile << output.Vertices[i].x << " " << output.Vertices[i].y << " 0.0" << std::endl;
     }
 
     // Escribir caras (polígonos)
+#ifdef DEBUG
     std::cout << "[DEBUG] triangulation.h: write_triangulation_to_off: Escribiendo " << n_polygons << " caras..." << std::endl;
+#endif
     std::fill(visited.begin(), visited.end(), false);
     for(int i = 0; i < output.n_halfedges; i++){
         if (i >= (int)visited.size()) {
+#ifdef DEBUG
              std::cerr << "[ERROR] triangulation.h: write_triangulation_to_off: Acceso fuera de límites en 'visited' (i=" << i << ")" << std::endl;
+#endif
              continue;
         }
         if (!visited[i] && !output.is_border_face(i)) {
@@ -839,7 +947,9 @@ void write_triangulation_to_off(Triangulation &output, std::string filename){
             int current_he = i;
             do {
                 if (current_he < 0 || current_he >= (int)visited.size()) {
+#ifdef DEBUG
                      std::cerr << "[ERROR] triangulation.h: write_triangulation_to_off: Acceso fuera de límites en 'visited' (current_he=" << current_he << ")" << std::endl;
+#endif
                      break;
                 }
                 visited[current_he] = true;
@@ -855,16 +965,22 @@ void write_triangulation_to_off(Triangulation &output, std::string filename){
         }
     }
     outFile.close();
+#ifdef DEBUG
     std::cout << "[DEBUG] triangulation.h: write_triangulation_to_off: Fin." << std::endl;
+#endif
 }
 
 
 // Función de utilidad para escribir los seed edges (si se necesita)
 void write_compaction_file(Triangulation &output, std::string filename, int n_seed_edges){
+#ifdef DEBUG
     std::cout << "[DEBUG] triangulation.h: write_compaction_file(...) llamado." << std::endl;
+#endif
     std::ofstream outFile(filename);
      if (!outFile.is_open()) {
+#ifdef DEBUG
         std::cerr << "Error: No se pudo crear el archivo de compactación: " << filename << std::endl;
+#endif
         return;
     }
     
@@ -875,7 +991,9 @@ void write_compaction_file(Triangulation &output, std::string filename, int n_se
         }
     }
     outFile.close();
+#ifdef DEBUG
     std::cout << "[DEBUG] triangulation.h: write_compaction_file: Fin." << std::endl;
+#endif
 }
 
 

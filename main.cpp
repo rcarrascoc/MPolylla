@@ -6,7 +6,9 @@
 
 int main(int argc, char* argv[])
 {
+    #ifdef DEBUG
     std::cout << "[DEBUG] main: Inicio de main." << std::endl;
+    #endif
 
     if (argc < 2){
         printf("Error: Archivo de entrada no especificado.\n");
@@ -22,8 +24,10 @@ int main(int argc, char* argv[])
     if (argc > 2)
         output_file_name = std::string(argv[2]);
 
+    #ifdef DEBUG
     std::cout << "[DEBUG] main: Archivo de entrada: " << input_file_name << std::endl;
     std::cout << "[DEBUG] main: Nombre base de salida: " << output_file_name << std::endl;
+    #endif
 
     
     // ---------------------------------------------------
@@ -35,31 +39,45 @@ int main(int argc, char* argv[])
     std::string output_off_file = output + ".off";
     std::string output_json_file = output + ".json";
 
-    printf("Ejecutando MPolylla (OpenMP)...\n");
+    printf("Ejecutando MPolylla (OpenMP) con %i cores...\n", omp_get_max_threads());
+    #ifdef DEBUG
     std::cout << "[DEBUG] main: Llamando constructor Polylla(" << off_file << ")..." << std::endl;
+    #endif
 
     // 1. Crear y ejecutar Polylla (el constructor hace todo el trabajo)
     Polylla mesh(off_file);
     
+    #ifdef DEBUG
     std::cout << "[DEBUG] main: Constructor Polylla finalizado." << std::endl;
+    #endif
     printf("Ejecución de MPolylla finalizada.\n");
 
     // 2. Escribir el resultado a un nuevo archivo .off
     printf("Escribiendo archivo de salida .off...\n");
+    #ifdef DEBUG
     std::cout << "[DEBUG] main: Llamando print_OFF(" << output_off_file << ")..." << std::endl;
-    mesh.print_OFF(output_off_file);
+    #endif
+    //mesh.print_OFF(output_off_file);
+    #ifdef DEBUG
     std::cout << "[DEBUG] main: print_OFF finalizado." << std::endl;
+    #endif
     printf("Archivo de salida escrito en: %s\n", output_off_file.c_str());
 
     // 3. Escribir las estadísticas a un archivo .json
     printf("Escribiendo archivo de stats .json...\n");
+    #ifdef DEBUG
     std::cout << "[DEBUG] main: Llamando print_stats(" << output_json_file << ")..." << std::endl;
+    #endif
     mesh.print_stats(output_json_file);
+    #ifdef DEBUG
     std::cout << "[DEBUG] main: print_stats finalizado." << std::endl;
+    #endif
     printf("Archivo de stats escrito en: %s\n", output_json_file.c_str());
 
     // 4. Liberar memoria (El destructor de 'mesh' se llama automáticamente al salir de main)
+    #ifdef DEBUG
     std::cout << "[DEBUG] main: Fin de main. El destructor de Polylla se llamará ahora." << std::endl;
+    #endif
     
     // ---------------------------------------------------
     // FIN DE SECCIÓN MODIFICADA

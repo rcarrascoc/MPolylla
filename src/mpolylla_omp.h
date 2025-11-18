@@ -78,77 +78,107 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
 
         // Función principal de ejecución (privada, llamada por el constructor)
         void construct_Polylla(){
-            std::cout << "[DEBUG] mpolylla_omp.h: run() [construct_Polylla] llamado." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] mpolylla_omp.h: run() [construct_Polylla] llamado." << std::endl;
+            #endif
             
             // --- Fases 1, 2, 3 (Label, Frontier, Seed) ---
-            std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fases 1-3: Label, Frontier, Seed..." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fases 1-3: Label, Frontier, Seed..." << std::endl;
+            #endif
             timer.Start();
             label_edges_max_d(*mesh_input, h_max_edges, n_faces);
             timer.Stop();
             t_label_max_edges_d = timer.Elapsed();
-            printf ("[TIME] Label max edges phase: %f\n", (float) t_label_max_edges_d);
+            #ifdef DEBUG
+                        printf ("[TIME] Label max edges phase: %f\n", (float) t_label_max_edges_d);
+            #endif
 
             timer.Start();
             label_phase(*mesh_input, h_max_edges, h_frontier_edges, n_halfedges);
             timer.Stop();
             t_label_frontier_edges_d = timer.Elapsed();
-            printf ("[TIME] Label frontier edges phase: %f\n", (float) t_label_frontier_edges_d);
+            #ifdef DEBUG
+                        printf ("[TIME] Label frontier edges phase: %f\n", (float) t_label_frontier_edges_d);
+            #endif
 
             timer.Start();
             seed_phase_d(*mesh_input, h_max_edges, h_seed_edges, n_halfedges);
             timer.Stop();
             t_label_seed_edges_d = timer.Elapsed();
-            printf ("[TIME] Label seed edges phase: %f\n", (float) t_label_seed_edges_d);
+            #ifdef DEBUG
+                        printf ("[TIME] Label seed edges phase: %f\n", (float) t_label_seed_edges_d);
+            #endif
 
             // --- Fase 4 (Repair) ---
-            std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fase 4: Repair (label_extra_frontier_edge_d)..." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fase 4: Repair (label_extra_frontier_edge_d)..." << std::endl;
+            #endif
             timer.Start();
             label_extra_frontier_edge_d(*mesh_input, h_frontier_edges, h_seed_edges, n_vertices);
             timer.Stop();
             t_label_extra_frontier_edge_d = timer.Elapsed();
-            printf ("[TIME] Repair phase (GPolylla 4): %f\n", (float) t_label_extra_frontier_edge_d);
+            #ifdef DEBUG
+                        printf ("[TIME] Repair phase (GPolylla 4): %f\n", (float) t_label_extra_frontier_edge_d);
+            #endif
 
             // --- Fase 5 (Travel) ---
-            std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fase 5: Travel..." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fase 5: Travel..." << std::endl;
+            #endif
             timer.Start();
             travel_phase_d(*mesh_input, *mesh_output, h_max_edges, h_frontier_edges, n_halfedges);
             timer.Stop();
             t_traversal_1_d = timer.Elapsed();
-            printf ("[TIME] Travel phase (GPolylla 5): %f\n", (float) t_traversal_1_d);
+            #ifdef DEBUG
+                        printf ("[TIME] Travel phase (GPolylla 5): %f\n", (float) t_traversal_1_d);
+            #endif
 
             // --- Fase 6 (Post-Travel Repair) ---
-            std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fase 6: Post-Travel Repair..." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fase 6: Post-Travel Repair..." << std::endl;
+            #endif
             timer.Start();
             search_frontier_edge_d(*mesh_input, h_frontier_edges, h_seed_edges, n_halfedges);
             timer.Stop();
             t_traversal_2_d = timer.Elapsed();
-            printf ("[TIME] Repair search frontier edge (GPolylla 6): %f\n", (float) t_traversal_2_d);
+            #ifdef DEBUG
+                        printf ("[TIME] Repair search frontier edge (GPolylla 6): %f\n", (float) t_traversal_2_d);
+            #endif
 
             timer.Start();
             overwrite_seed_d(*mesh_output, h_seed_edges, n_halfedges);
             timer.Stop();
             t_overwrite_seed_d = timer.Elapsed();
-            printf ("[TIME] Repair overwrite seed (GPolylla 7): %f\n", (float) t_overwrite_seed_d);
+            #ifdef DEBUG
+                        printf ("[TIME] Repair overwrite seed (GPolylla 7): %f\n", (float) t_overwrite_seed_d);
+            #endif
 
 
             // --- Fase 7 (Scan & Compaction) ---
-            std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fase 7: Scan y Compaction (Serial)..." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fase 7: Scan y Compaction (Serial)..." << std::endl;
+            #endif
             
             // 7.2. COMPACTION (GPolylla: Label seed edges 3)
             timer.Start();
             compaction_serial_omp(h_seed_edges_comp, &m_polygons, h_seed_edges, n_halfedges);
             timer.Stop();
             t_label_seed_compaction_d = timer.Elapsed();
-            std::cout << "[DEBUG] mpolylla_omp.h: run: 7.2. " << m_polygons << " polígonos (seeds) contados." << std::endl;
-            printf ("[TIME] Compaction phase (GPolylla 9): %f\n", (float) t_label_seed_compaction_d);
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] mpolylla_omp.h: run: 7.2. " << m_polygons << " polígonos (seeds) contados." << std::endl;
+                        printf ("[TIME] Compaction phase (GPolylla 9): %f\n", (float) t_label_seed_compaction_d);
+            #endif
             
             /*// print frotier_edges for debug
-            std::cout << "[DEBUG] h_seed_edges_comp after compaction:" << std::endl;
-            for(int i = 0; i < m_polygons; i++){
-                std::cout << h_seed_edges_comp[i] << " ";
-            }
-            std::cout << std::endl; //*/
-            
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] h_seed_edges_comp after compaction:" << std::endl;
+                        for(int i = 0; i < m_polygons; i++){
+                            std::cout << h_seed_edges_comp[i] << " ";
+                        }
+                        std::cout << std::endl;
+            #endif //*/
+                        
 
 
             // --- Fase 8: Copia Final ---
@@ -157,12 +187,16 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
             mesh_output->Vertices = mesh_input->Vertices;
 
             // Copia final a output_seeds (GPolylla: Loop final)
-            std::cout << "[DEBUG] mpolylla_omp.h: run: Copiando resultado final a output_seeds..." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] mpolylla_omp.h: run: Copiando resultado final a output_seeds..." << std::endl;
+            #endif
             output_seeds.clear();
             output_seeds.resize(m_polygons);
             memcpy(output_seeds.data(), h_seed_edges_comp, sizeof(int) * m_polygons);
 
-            std::cout << "[DEBUG] mpolylla_omp.h: run: Fin." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] mpolylla_omp.h: run: Fin." << std::endl;
+            #endif
         }
 
     public:
@@ -170,20 +204,28 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
 
         // Constructor por defecto
         Polylla() : mesh_input(nullptr), mesh_output(nullptr) {
-            std::cout << "[DEBUG] Polylla::Constructor() (default) llamado." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] Polylla::Constructor() (default) llamado." << std::endl;
+            #endif
         }
 
         // Constructor desde OFF file (el que pide main.cpp)
         Polylla(std::string off_file) {
-            std::cout << "[DEBUG] Polylla::Constructor(OFF_file=" << off_file << ") llamado." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] Polylla::Constructor(OFF_file=" << off_file << ") llamado." << std::endl;
+            #endif
             
             // 1. Crear mesh_input
             this->mesh_input = new Triangulation(off_file);
-            std::cout << "[DEBUG] Polylla::Constructor: mesh_input creado." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] Polylla::Constructor: mesh_input creado." << std::endl;
+            #endif
             
             // 2. Crear mesh_output usando constructor de copia
             this->mesh_output = new Triangulation(*mesh_input);
-            std::cout << "[DEBUG] Polylla::Constructor: mesh_output (copia) creado." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] Polylla::Constructor: mesh_output (copia) creado." << std::endl;
+            #endif
             
             // Inicializar variables de GPolylla
             n_vertices = mesh_input->n_vertices;
@@ -191,10 +233,14 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
             n_faces = mesh_input->n_faces;
             m_polygons = 0;
 
-            std::cout << "[DEBUG] Polylla::Constructor: n_vertices=" << n_vertices << ", n_halfedges=" << n_halfedges << ", n_faces=" << n_faces << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] Polylla::Constructor: n_vertices=" << n_vertices << ", n_halfedges=" << n_halfedges << ", n_faces=" << n_faces << std::endl;
+            #endif
 
             // 3. Alocar memoria de trabajo
-            std::cout << "[DEBUG] Polylla::Constructor: Alocando buffers de trabajo..." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] Polylla::Constructor: Alocando buffers de trabajo..." << std::endl;
+            #endif
             h_max_edges = new bit_vector_d[n_halfedges];
             h_frontier_edges = new bit_vector_d[n_halfedges];
             h_seed_edges = new int[n_halfedges]; // GPolylla::seed_edges_ad (bit-vector)
@@ -207,7 +253,9 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
             memset(h_seed_edges, 0, sizeof(int)*n_halfedges); 
             memset(h_scan, 0, sizeof(int)*n_halfedges);
             memset(h_seed_edges_comp, 0, sizeof(int)*n_halfedges);
-            std::cout << "[DEBUG] Polylla::Constructor: Buffers alocados e inicializados." << std::endl;
+            #ifdef DEBUG
+                        std::cout << "[DEBUG] Polylla::Constructor: Buffers alocados e inicializados." << std::endl;
+            #endif
 
             // 5. Ejecutar el algoritmo
             construct_Polylla();
@@ -215,7 +263,9 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
 
         // Destructor (NUEVO)
         ~Polylla(){
-            std::cout << "[DEBUG] Polylla::Destructor ~Polylla() llamado." << std::endl;
+            #ifdef DEBUG
+                std::cout << "[DEBUG] Polylla::Destructor ~Polylla() llamado." << std::endl;
+            #endif
             // Liberar triangulaciones
             if (mesh_input) delete mesh_input;
             if (mesh_output) delete mesh_output;
@@ -227,7 +277,9 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
             delete[] h_scan;
             delete[] h_seed_edges_comp;
             
-            std::cout << "[DEBUG] Polylla::Destructor ~Polylla: Fin." << std::endl;
+            #ifdef DEBUG
+                std::cout << "[DEBUG] Polylla::Destructor ~Polylla: Fin." << std::endl;
+            #endif
         }
 
 
@@ -237,8 +289,9 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
     void print_OFF(std::string filename){
         std::ofstream out(filename);
 
-        // GPolylla usa mesh_input para vértices y m_polygons
-        std::cout << "Printing OFF file " <<  mesh_input->vertices() << " " << m_polygons << std::endl;
+        #ifdef DEBUG
+            std::cout << "Printing OFF file " <<  mesh_input->vertices() << " " << m_polygons << std::endl;
+        #endif
 
         out<<"OFF"<<std::endl;
         //num_vertices num_polygons 0
@@ -274,7 +327,9 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
     // Función print_stats (NUEVA, adaptada de GPolylla)
     void print_stats(std::string filename){
         std::ofstream out(filename);
-        std::cout<<"Printing JSON file as "<<filename<<std::endl;
+        #ifdef DEBUG
+            std::cout<<"Printing JSON file as "<<filename<<std::endl;
+        #endif
         
         double t_total = t_label_max_edges_d + t_label_frontier_edges_d + t_label_seed_edges_d + 
                          t_label_extra_frontier_edge_d + t_traversal_1_d + t_traversal_2_d + 
