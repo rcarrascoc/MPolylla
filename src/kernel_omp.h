@@ -132,19 +132,19 @@ void seed_phase_d(Triangulation &tr, bit_vector_d *max_edges, int *seed_edges, i
  * @param in Puntero al array de entrada (h_seed_edges, tipo int)
  * @param n Número de elementos
  */
-template <typename T_out, typename T_in>
-void scan_serial_omp(T_out *out, const T_in *in, int n) {
+template <typename T, typename V>
+void compaction_serial_omp(T *output, int *h_num, const V *auxiliary, int size) {
     #ifdef DEBUG 
-    std::cout << "[DEBUG] kernel_omp.h: Usando scan_serial_omp(n = " << n << ")..." << std::endl;
+    std::cout << "[DEBUG] kernel_omp.h: compaction_serial_omp(size = " << size << ") llamado." << std::endl;
     #endif
-    if (n == 0) return;
-    
-    // El primer elemento de un scan exclusivo es siempre 0
-    out[0] = 0; 
-    for (int i = 1; i < n; i++) {
-        // out[i] = out[i-1] + in[i-1]
-        out[i] = out[i-1] + static_cast<T_out>(in[i-1]);
+
+    int j = 0;
+    for (int i = 0; i < size; ++i) {
+        if (auxiliary[i] == 1) {
+            output[j++] = static_cast<T>(i); // store index i
+        }
     }
+    *h_num = j;
 }
 
 
@@ -160,70 +160,18 @@ void scan_serial_omp(T_out *out, const T_in *in, int n) {
  * @param size El número total de halfedges (n_halfedges)
  */
 template <typename T, typename V>
-void compaction_serial_omp(T *output,   // h_seed_edges_comp (int*)
-                           int *h_num,    // &m_polygons
-                           V *auxiliary,  // h_seed_edges (int*)
-                           int size) 
-{
-    #ifdef DEBUG 
-    std::cout << "[DEBUG] kernel_omp.h: Usando compaction_serial_omp(n = " << size << ")..." << std::endl;
-    #endif
-
-    if (size == 0) {
-        *h_num = 0;
-        return;
-    }
-
-    // Parallel compaction: 2-phase (per-thread counts + prefix + parallel scatter)
-    int max_threads = omp_get_max_threads();
-    std::vector<int> local_counts(max_threads, 0);
-    int nthreads = 1;
-
-    // Phase 1: per-thread counting
-    #pragma omp parallel
-    {
-        int tid = omp_get_thread_num();
-        int tcount = omp_get_num_threads();
-        int start = (size * tid) / tcount;
-        int end   = (size * (tid + 1)) / tcount;
-
-        int cnt = 0;
-        for (int i = start; i < end; ++i) {
-            if (auxiliary[i] == 1) ++cnt;
-        }
-        local_counts[tid] = cnt;
-
-        #pragma omp barrier
-        #pragma omp single
-        nthreads = omp_get_num_threads();
-    }
-
-    // Compute exclusive prefix (offsets) in parallel (each thread sums previous local_counts)
-    std::vector<int> offsets(nthreads, 0);
+void compaction_parallel(T *output, int *h_num, V *auxiliary, T *input, int size){
+    int i, j=0;
     #pragma omp parallel for
-    for (int t = 0; t < nthreads; ++t) {
-        int s = 0;
-        for (int i = 0; i < t; ++i) s += local_counts[i];
-        offsets[t] = s;
-    }
-    int total = offsets[nthreads - 1] + local_counts[nthreads - 1];
-    *h_num = total;
-
-    // Phase 2: parallel scatter using per-thread offsets
-    #pragma omp parallel
+    for (i = 0; i < size; i++)
     {
-        int tid = omp_get_thread_num();
-        int tcount = omp_get_num_threads();
-        int start = (size * tid) / tcount;
-        int end   = (size * (tid + 1)) / tcount;
-
-        int write_pos = offsets[tid];
-        for (int i = start; i < end; ++i) {
-            if (auxiliary[i] == 1) {
-                output[write_pos++] = static_cast<T>(i);
-            }
+        if (auxiliary[i] == 1)
+        {
+            output[j] = input[i];
+            j++;
         }
     }
+    *h_num = j;
 }
 
 
