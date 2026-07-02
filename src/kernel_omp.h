@@ -14,18 +14,9 @@
 
 //#define DEBUG
 
-// Here starts the "gpu" code!!!!!!!
+// Here starts the "parallel cpu" code!!!!!!!
 
 typedef int bit_vector_d;
-
-// NOTA: Las funciones 'inline' 'twin_d', 'next_d', 'prev_d', 'origin_d', etc.,
-// han sido eliminadas. Ahora usaremos los métodos de la clase Triangulation,
-// como tr.twin(e), tr.next(e), etc.
-
-// Las funciones 'kernel' ahora toman una referencia a la clase Triangulation
-// para poder llamar a sus métodos.
-
-// --- Implementación de funciones auxiliares que SÍ estaban en kernel.cu ---
 
 inline int Equality(double a, double b, double epsilon) {
   return fabs(a - b) < epsilon;
@@ -72,11 +63,28 @@ void label_phase(Triangulation &tr, bit_vector_d *max_edges, bit_vector_d *front
     #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: label_phase(n = " << n << ") llamado." << std::endl;
     #endif
-    #pragma omp parallel for
-    for (int off = 0; off < n; off++){
-        frontier_edges[off] = 0;
-        if(is_frontier_edge_d(tr, max_edges, off))
-            frontier_edges[off] = 1;
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            int num_threads = omp_get_num_threads();
+            for (int t = 0; t < num_threads; t++) {
+                int chunk_size = n / num_threads;
+                int remainder = n % num_threads;
+                int start = t * chunk_size + std::min(t, remainder);
+                int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
+
+                #pragma omp task firstprivate(start, end)
+                {
+                    for (int off = start; off < end; off++){
+                        frontier_edges[off] = 0;
+                        if(is_frontier_edge_d(tr, max_edges, off))
+                            frontier_edges[off] = 1;
+                    }
+                }
+            }
+            #pragma omp taskwait
+        }
     }
 }
 
@@ -84,13 +92,28 @@ void label_edges_max_d(Triangulation &tr, bit_vector_d *output, int n_faces) {
     #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: label_edges_max_d(n_faces = " << n_faces << ") llamado." << std::endl;
     #endif
-    #pragma omp parallel for
-    for(int off = 0; off < n_faces; off++) {
-        // tr.incident_halfedge(off) es 3*off
-        int edge_max_index = compute_max_edge_d(tr, tr.incident_halfedge(off));
-        
-         
-        output[edge_max_index] = 1;
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            int num_threads = omp_get_num_threads();
+            for (int t = 0; t < num_threads; t++) {
+                int chunk_size = n_faces / num_threads;
+                int remainder = n_faces % num_threads;
+                int start = t * chunk_size + std::min(t, remainder);
+                int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
+
+                #pragma omp task firstprivate(start, end)
+                {
+                    for(int off = start; off < end; off++) {
+                        // tr.incident_halfedge(off) es 3*off
+                        int edge_max_index = compute_max_edge_d(tr, tr.incident_halfedge(off));
+                        output[edge_max_index] = 1;
+                    }
+                }
+            }
+            #pragma omp taskwait
+        }
     }
 }
 
@@ -112,10 +135,27 @@ void seed_phase_d(Triangulation &tr, bit_vector_d *max_edges, int *seed_edges, i
     #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: seed_phase_d(n = " << n_halfedges << ") llamado." << std::endl;
     #endif
-    #pragma omp parallel for
-    for (int off = 0; off < n_halfedges; off++){
-        if(tr.is_interior_face(off) && is_seed_edge_d(tr, max_edges, off))
-            seed_edges[off] = 1; // 1 en lugar de 1.0f
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            int num_threads = omp_get_num_threads();
+            for (int t = 0; t < num_threads; t++) {
+                int chunk_size = n_halfedges / num_threads;
+                int remainder = n_halfedges % num_threads;
+                int start = t * chunk_size + std::min(t, remainder);
+                int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
+
+                #pragma omp task firstprivate(start, end)
+                {
+                    for (int off = start; off < end; off++){
+                        if(tr.is_interior_face(off) && is_seed_edge_d(tr, max_edges, off))
+                            seed_edges[off] = 1; // 1 en lugar de 1.0f
+                    }
+                }
+            }
+            #pragma omp taskwait
+        }
     }
 }
 
@@ -161,14 +201,35 @@ void compaction_serial_omp(T *output, int *h_num, const V *auxiliary, int size) 
  */
 template <typename T, typename V>
 void compaction_parallel(T *output, int *h_num, V *auxiliary, T *input, int size){
-    int i, j=0;
-    #pragma omp parallel for
-    for (i = 0; i < size; i++)
+    int j = 0;
+    #pragma omp parallel
     {
-        if (auxiliary[i] == 1)
+        #pragma omp single
         {
-            output[j] = input[i];
-            j++;
+            int num_threads = omp_get_num_threads();
+            for (int t = 0; t < num_threads; t++) {
+                int chunk_size = size / num_threads;
+                int remainder = size % num_threads;
+                int start = t * chunk_size + std::min(t, remainder);
+                int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
+
+                #pragma omp task firstprivate(start, end)
+                {
+                    for (int i = start; i < end; i++)
+                    {
+                        if (auxiliary[i] == 1)
+                        {
+                            int local_j;
+                            #pragma omp critical
+                            {
+                                local_j = j++;
+                            }
+                            output[local_j] = input[i];
+                        }
+                    }
+                }
+            }
+            #pragma omp taskwait
         }
     }
     *h_num = j;
@@ -199,17 +260,45 @@ void travel_phase_d(Triangulation &tr, Triangulation &output_tr, bit_vector_d *m
     std::cout << "[DEBUG] kernel_omp.h: travel_phase_d(n = " << n_halfedges << ") llamado." << std::endl;
     #endif
     
-    // Copiamos los halfedges de 'tr' (entrada) a 'output_tr' (salida)
-    #pragma omp parallel for
-    for (int off = 0; off < n_halfedges; off++){
-        output_tr.HalfEdges[off] = tr.HalfEdges[off];
-    }
-    
-    #pragma omp parallel for
-    for (int off = 0; off < n_halfedges; off++){
-        // Modificamos los punteros next/prev en la *copia de salida*
-        output_tr.HalfEdges[off].next = search_next_frontier_edge_d(tr, frontier_edges, tr.next(off));
-        output_tr.HalfEdges[off].prev = search_prev_frontier_edge_d(tr, frontier_edges, tr.prev(off));
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            int num_threads = omp_get_num_threads();
+            // Copiamos los halfedges de 'tr' (entrada) a 'output_tr' (salida)
+            for (int t = 0; t < num_threads; t++) {
+                int chunk_size = n_halfedges / num_threads;
+                int remainder = n_halfedges % num_threads;
+                int start = t * chunk_size + std::min(t, remainder);
+                int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
+
+                #pragma omp task firstprivate(start, end)
+                {
+                    for (int off = start; off < end; off++){
+                        output_tr.HalfEdges[off] = tr.HalfEdges[off];
+                    }
+                }
+            }
+            
+            #pragma omp taskwait
+            
+            // Modificamos los punteros next/prev en la *copia de salida*
+            for (int t = 0; t < num_threads; t++) {
+                int chunk_size = n_halfedges / num_threads;
+                int remainder = n_halfedges % num_threads;
+                int start = t * chunk_size + std::min(t, remainder);
+                int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
+
+                #pragma omp task firstprivate(start, end)
+                {
+                    for (int off = start; off < end; off++){
+                        output_tr.HalfEdges[off].next = search_next_frontier_edge_d(tr, frontier_edges, tr.next(off));
+                        output_tr.HalfEdges[off].prev = search_prev_frontier_edge_d(tr, frontier_edges, tr.prev(off));
+                    }
+                }
+            }
+            #pragma omp taskwait
+        }
     }
 }
 
@@ -252,25 +341,37 @@ void label_extra_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges
     #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: label_extra_frontier_edge_d(n_vertices = " << n_vertices << ") llamado." << std::endl;
     #endif
-    #pragma omp parallel for
-    for (int v = 0; v < n_vertices; v++){
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            int num_threads = omp_get_num_threads();
+            for (int t = 0; t < num_threads; t++) {
+                int chunk_size = n_vertices / num_threads;
+                int remainder = n_vertices % num_threads;
+                int start = t * chunk_size + std::min(t, remainder);
+                int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
 
-        if(count_frontier_edges_d(tr, frontier_edges, v) == 1){
-            int middle_edge = calculate_middle_edge_d(tr, frontier_edges, v);
+                #pragma omp task firstprivate(start, end)
+                {
+                    for (int v = start; v < end; v++){
+                        if(count_frontier_edges_d(tr, frontier_edges, v) == 1){
+                            int middle_edge = calculate_middle_edge_d(tr, frontier_edges, v);
 
-            int t1 = middle_edge;
-            int t2 = tr.twin(middle_edge);
+                            int t1 = middle_edge;
+                            int t2 = tr.twin(middle_edge);
 
-            //edges of middle-edge are labeled as frontier-edge
-             
-            frontier_edges[t1] = 1;
-             
-            frontier_edges[t2] = 1;
+                            //edges of middle-edge are labeled as frontier-edge
+                            frontier_edges[t1] = 1;
+                            frontier_edges[t2] = 1;
 
-             
-            seed_edges[t1] = 1;
-             
-            seed_edges[t2] = 1;
+                            seed_edges[t1] = 1;
+                            seed_edges[t2] = 1;
+                        }
+                    }
+                }
+            }
+            #pragma omp taskwait
         }
     }  
 }
@@ -280,19 +381,35 @@ void search_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges,  in
     #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: search_frontier_edge_d(n = " << n_halfedges << ") llamado." << std::endl;
     #endif
-    #pragma omp parallel for
-    for (int off = 0; off < n_halfedges; off++){
-        if(seed_edges[off] == 1){
-            int nxt = off;
-            while(!frontier_edges[nxt])
-            {
-                nxt = tr.CW_edge_to_vertex(nxt);
-            }  
-            if(nxt != off)
-                seed_edges[off] = 0;
-            
-             
-            seed_edges[nxt] = 1;
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            int num_threads = omp_get_num_threads();
+            for (int t = 0; t < num_threads; t++) {
+                int chunk_size = n_halfedges / num_threads;
+                int remainder = n_halfedges % num_threads;
+                int start = t * chunk_size + std::min(t, remainder);
+                int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
+
+                #pragma omp task firstprivate(start, end)
+                {
+                    for (int off = start; off < end; off++){
+                        if(seed_edges[off] == 1){
+                            int nxt = off;
+                            while(!frontier_edges[nxt])
+                            {
+                                nxt = tr.CW_edge_to_vertex(nxt);
+                            }  
+                            if(nxt != off)
+                                seed_edges[off] = 0;
+                            
+                            seed_edges[nxt] = 1;
+                        }
+                    }
+                }
+            }
+            #pragma omp taskwait
         }
     }
 }
@@ -302,23 +419,39 @@ void overwrite_seed_d(Triangulation &tr, int *seed_edges, int n_halfedges){
     #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: overwrite_seed_d(n = " << n_halfedges << ") llamado." << std::endl;
     #endif
-    #pragma omp parallel for
-    for (int i = 0; i < n_halfedges; i++){        
-        if(seed_edges[i] == 1){
-            int e_init = i;
-            int min_ind = e_init;
-            int e_curr = tr.next(e_init);
-            while(e_init != e_curr){
-                min_ind = std::min(min_ind, e_curr);
-                e_curr = tr.next(e_curr);
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            int num_threads = omp_get_num_threads();
+            for (int t = 0; t < num_threads; t++) {
+                int chunk_size = n_halfedges / num_threads;
+                int remainder = n_halfedges % num_threads;
+                int start = t * chunk_size + std::min(t, remainder);
+                int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
+
+                #pragma omp task firstprivate(start, end)
+                {
+                    for (int i = start; i < end; i++){        
+                        if(seed_edges[i] == 1){
+                            int e_init = i;
+                            int min_ind = e_init;
+                            int e_curr = tr.next(e_init);
+                            while(e_init != e_curr){
+                                min_ind = std::min(min_ind, e_curr);
+                                e_curr = tr.next(e_curr);
+                            }
+                            
+                            if(min_ind != i){
+                                seed_edges[i] = 0;
+                            }
+                            
+                            seed_edges[min_ind] = 1;
+                        }
+                    }
+                }
             }
-            
-            if(min_ind != i){
-                seed_edges[i] = 0;
-            }
-            
-             
-            seed_edges[min_ind] = 1;
+            #pragma omp taskwait
         }
     }  
 }

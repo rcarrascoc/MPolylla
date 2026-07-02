@@ -8,6 +8,14 @@ project(MPolylla_OMP LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Configurar tipo de compilación por defecto a Release
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
+# Flags de optimización agresiva para el compilador
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native -ffast-math")
+
 # Buscar el paquete OpenMP
 find_package(OpenMP REQUIRED)
 

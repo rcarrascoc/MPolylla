@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
     #ifdef DEBUG
     std::cout << "[DEBUG] main: Llamando print_OFF(" << output_off_file << ")..." << std::endl;
     #endif
-    //mesh.print_OFF(output_off_file);
+    mesh.print_OFF(output_off_file);
     #ifdef DEBUG
     std::cout << "[DEBUG] main: print_OFF finalizado." << std::endl;
     #endif

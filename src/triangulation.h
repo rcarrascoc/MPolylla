@@ -675,18 +675,20 @@ public:
         return sizeof(decltype(HalfEdges.back())) * HalfEdges.capacity();
     }
 
-    // Calculates the distante of edge e
+    // Calculates the distance of edge e
     double distance(int e){
-        double x1 = Vertices.at(origin(e)).x;
-        double y1 = Vertices.at(origin(e)).y;
-        double x2 = Vertices.at(target(e)).x;
-        double y2 = Vertices.at(target(e)).y;
-        return pow(x1-x2,2) + pow(y1-y2,2); //no sqrt for performance
+        double x1 = Vertices[origin(e)].x;
+        double y1 = Vertices[origin(e)].y;
+        double x2 = Vertices[target(e)].x;
+        double y2 = Vertices[target(e)].y;
+        double dx = x1 - x2;
+        double dy = y1 - y2;
+        return dx * dx + dy * dy; // no sqrt for performance
     }
 
 
     //int face_index(int i){
-    //    return HalfEdges.at(i).face;
+    //    return HalfEdges[i].face;
     //}
 
     //Return triangle of the face incident to edge e
@@ -703,7 +705,7 @@ public:
         {
             nxt = next(nxt);            
             curr_vertex = origin(nxt);
-            face.at(i) = curr_vertex;
+            face[i] = curr_vertex;
             i++;
         }
         return face;
@@ -714,12 +716,12 @@ public:
     //Output: true if the triangle is counterclockwise, false otherwise
     bool is_counterclockwise(_triangle tr)
     {
-        int v0 = tr.at(0);
-        int v1 = tr.at(1);
-        int v2 = tr.at(2);
+        int v0 = tr[0];
+        int v1 = tr[1];
+        int v2 = tr[2];
         double area = 0.0;
             //int val = (p2.y - p1.y) * (p3.x - p2.x) - (p2.x - p1.x) * (p3.y - p2.y);
-        area = (Vertices.at(v2).x - Vertices.at(v1).x) * (Vertices.at(v1).y - Vertices.at(v0).y) - (Vertices.at(v2).y - Vertices.at(v1).y) * (Vertices.at(v1).x - Vertices.at(v0).x);
+        area = (Vertices[v2].x - Vertices[v1].x) * (Vertices[v1].y - Vertices[v0].y) - (Vertices[v2].y - Vertices[v1].y) * (Vertices[v1].x - Vertices[v0].x);
         if(area < 0)
             return true;
         return false;
@@ -731,8 +733,8 @@ public:
     int CCW_edge_to_vertex(int e)
     {
         int twn, nxt;
-        nxt = HalfEdges.at(e).prev;
-        twn = HalfEdges.at(nxt).twin;
+        nxt = HalfEdges[e].prev;
+        twn = HalfEdges[nxt].twin;
         return twn;
     }    
 
@@ -742,8 +744,8 @@ public:
     int CW_edge_to_vertex(int e)
     {
         int twn, nxt;
-        twn = HalfEdges.at(e).twin;
-        nxt = HalfEdges.at(twn).next;
+        twn = HalfEdges[e].twin;
+        nxt = HalfEdges[twn].next;
         return nxt;
     }    
 
@@ -769,25 +771,25 @@ public:
     }
 
     double get_PointX(int i){
-        return Vertices.at(i).x;
+        return Vertices[i].x;
     }
 
     double get_PointY(int i){
-        return Vertices.at(i).y;
+        return Vertices[i].y;
     }
 
     //Calculates the next edge of the face incident to edge e
     //Input: e is the edge
     //Output: the next edge of the face incident to e
     int next(int e){
-        return HalfEdges.at(e).next;
+        return HalfEdges[e].next;
     }
 
     //Calculates the tail vertex of the edge e
     //Input: e is the edge
     //Output: the tail vertex v of the edge e
     int origin(int e){
-        return HalfEdges.at(e).origin;
+        return HalfEdges[e].origin;
     }
 
 
@@ -795,15 +797,15 @@ public:
     //Input: e is the edge
     //Output: the head vertex v of the edge e
     int target(int e){
-        //return HalfEdges.at(e).target;
-        return this->origin(HalfEdges.at(e).twin);
+        //return HalfEdges[e].target;
+        return this->origin(HalfEdges[e].twin);
     }
 
     //Return the twin edge of the edge e
     //Input: e is the edge
     //Output: the twin edge of e
     int twin(int e){
-        return HalfEdges.at(e).twin;
+        return HalfEdges[e].twin;
     }
 
     //Return the twin edge of the edge e
@@ -811,7 +813,7 @@ public:
     //Output: the twin edge of e
     int prev(int e)
     {
-        return HalfEdges.at(e).prev;
+        return HalfEdges[e].prev;
     }
 
 
@@ -821,7 +823,7 @@ public:
     //Output: the edge associate to the node v
     int edge_of_vertex(int v)
     {
-        return Vertices.at(v).incident_halfedge;
+        return Vertices[v].incident_halfedge;
     }
 
     //Input: edge e
@@ -829,7 +831,7 @@ public:
     //        false otherwise
     bool is_border_face(int e)
     {
-        return HalfEdges.at(e).is_border;
+        return HalfEdges[e].is_border;
     }
 
     // Input: edge e of compressTriangulation
@@ -844,23 +846,23 @@ public:
     //Output: the edge incident to v, wiht v as origin
     bool is_border_vertex(int v)
     {
-        return Vertices.at(v).is_border;
+        return Vertices[v].is_border;
     }
 
     //Halfedge update operations
     void set_next(int e, int nxt)
     {
-        HalfEdges.at(e).next = nxt;
+        HalfEdges[e].next = nxt;
     }
 
     void set_prev(int e, int prv)
     {
-        HalfEdges.at(e).prev = prv;
+        HalfEdges[e].prev = prv;
     }
 
     //void set_face(int e, int f)
     //{
-    //    HalfEdges.at(e).face = f;
+    //    HalfEdges[e].face = f;
     //}
 
     int degree(int v)
