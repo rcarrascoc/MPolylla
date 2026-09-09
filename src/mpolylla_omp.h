@@ -49,7 +49,7 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
         // (Equivalentes a max_edges_d, frontier_edges_d, seed_edges_ad, seed_edges_bd en GPolylla)
         bit_vector_d *h_max_edges;
         bit_vector_d *h_frontier_edges;
-        int *h_seed_edges;      // bit-vector (1 / 0) -> GPolylla::seed_edges_ad (tipo cambiado a int)
+        bit_vector_d *h_seed_edges;      // bit-vector (1 / 0) -> GPolylla::seed_edges_ad (tipo cambiado a int)
         int *h_scan;            // scan result -> GPolylla::seed_edges_bd
         int *h_seed_edges_comp; // compacted result -> GPolylla::seed_edges_d (host copy)
 
@@ -162,7 +162,7 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
             
             // 7.2. COMPACTION (GPolylla: Label seed edges 3)
             timer.Start();
-            compaction_serial_omp(h_seed_edges_comp, &m_polygons, h_seed_edges, n_halfedges);
+            compaction_parallel(h_seed_edges_comp, &m_polygons, h_seed_edges, n_halfedges);
             timer.Stop();
             t_label_seed_compaction_d = timer.Elapsed();
             #ifdef DEBUG
@@ -243,14 +243,14 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
             #endif
             h_max_edges = new bit_vector_d[n_halfedges];
             h_frontier_edges = new bit_vector_d[n_halfedges];
-            h_seed_edges = new int[n_halfedges]; // GPolylla::seed_edges_ad (bit-vector)
+            h_seed_edges = new bit_vector_d[n_halfedges]; // GPolylla::seed_edges_ad (bit-vector)
             h_scan = new int[n_halfedges];           // GPolylla::seed_edges_bd (scan result)
             h_seed_edges_comp = new int[n_halfedges]; // GPolylla::seed_edges_d (compacted)
 
             // 4. Inicializar memoria a 0
             memset(h_max_edges, 0, sizeof(bit_vector_d)*n_halfedges);
             memset(h_frontier_edges, 0, sizeof(bit_vector_d)*n_halfedges);
-            memset(h_seed_edges, 0, sizeof(int)*n_halfedges); 
+            memset(h_seed_edges, 0, sizeof(bit_vector_d)*n_halfedges); 
             memset(h_scan, 0, sizeof(int)*n_halfedges);
             memset(h_seed_edges_comp, 0, sizeof(int)*n_halfedges);
             #ifdef DEBUG
