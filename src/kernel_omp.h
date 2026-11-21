@@ -39,10 +39,23 @@ inline int GreaterEqualthan(double a, double b, double epsilon){
 // 'e' es *cualquier* half-edge de esa cara.
 inline int compute_max_edge_d(Triangulation &tr, int e){
     double epsion = 0.0000000001f;
-    // Llama al método distance() de la clase Triangulation
-    double l0 = tr.distance(e); 
-    double l1 = tr.distance(tr.next(e)); 
-    double l2 = tr.distance(tr.prev(e)); 
+    int e_next = tr.next(e);
+    int e_prev = tr.prev(e);
+    int v0 = tr.origin(e);
+    int v1 = tr.origin(e_next);
+    int v2 = tr.origin(e_prev);
+
+    double dx0 = tr.Vertices[v0].x - tr.Vertices[v1].x;
+    double dy0 = tr.Vertices[v0].y - tr.Vertices[v1].y;
+    double l0 = dx0 * dx0 + dy0 * dy0;
+
+    double dx1 = tr.Vertices[v1].x - tr.Vertices[v2].x;
+    double dy1 = tr.Vertices[v1].y - tr.Vertices[v2].y;
+    double l1 = dx1 * dx1 + dy1 * dy1;
+
+    double dx2 = tr.Vertices[v2].x - tr.Vertices[v0].x;
+    double dy2 = tr.Vertices[v2].y - tr.Vertices[v0].y;
+    double l2 = dx2 * dx2 + dy2 * dy2;
 
    if( (GreaterEqualthan(l0,l1,epsion) && GreaterEqualthan(l1,l2,epsion)) || ( GreaterEqualthan(l0,l2,epsion) && GreaterEqualthan(l2,l1,epsion)))
    {
@@ -50,11 +63,11 @@ inline int compute_max_edge_d(Triangulation &tr, int e){
    }
    else if((GreaterEqualthan(l1,l0,epsion) && GreaterEqualthan(l0,l2,epsion)) || ( GreaterEqualthan(l1,l2,epsion) && GreaterEqualthan(l2,l0,epsion)))
    {
-           return tr.next(e);
+           return e_next;
    }
    else
    {
-           return tr.prev(e);
+           return e_prev;
    }
 }
 
