@@ -162,7 +162,7 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
             
             // 7.2. COMPACTION (GPolylla: Label seed edges 3)
             timer.Start();
-            compaction_serial_omp(h_seed_edges_comp, &m_polygons, h_seed_edges, n_halfedges);
+            compaction_parallel(h_seed_edges_comp, &m_polygons, h_seed_edges, n_halfedges);
             timer.Stop();
             t_label_seed_compaction_d = timer.Elapsed();
             #ifdef DEBUG

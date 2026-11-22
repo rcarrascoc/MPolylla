@@ -173,18 +173,49 @@ void compaction_serial_omp(T *output, int *h_num, const V *auxiliary, int size) 
  * @param size El número total de halfedges (n_halfedges)
  */
 template <typename T, typename V>
-void compaction_parallel(T *output, int *h_num, V *auxiliary, T *input, int size){
-    int i, j=0;
-    #pragma omp parallel for
-    for (i = 0; i < size; i++)
+void compaction_parallel(T *output, int *h_num, const V *auxiliary, int size){
+    int total_elements = 0;
+    int max_threads = omp_get_max_threads();
+    std::vector<int> local_counts(max_threads, 0);
+    std::vector<int> offsets(max_threads, 0);
+
+    #pragma omp parallel
     {
-        if (auxiliary[i] == 1)
+        int num_threads = omp_get_num_threads();
+        int t = omp_get_thread_num();
+
+        int chunk_size = size / num_threads;
+        int remainder = size % num_threads;
+        int start = t * chunk_size + std::min(t, remainder);
+        int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
+
+        int my_count = 0;
+        for (int i = start; i < end; i++) {
+            if (auxiliary[i] == 1) my_count++;
+        }
+        local_counts[t] = my_count;
+
+        #pragma omp barrier
+
+        #pragma omp single
         {
-            output[j] = input[i];
-            j++;
+            int current_offset = 0;
+            for (int i = 0; i < num_threads; i++) {
+                offsets[i] = current_offset;
+                current_offset += local_counts[i];
+            }
+            total_elements = current_offset;
+        }
+
+        int write_index = offsets[t];
+        for (int i = start; i < end; i++) {
+            if (auxiliary[i] == 1) {
+                output[write_index++] = static_cast<T>(i);
+            }
         }
     }
-    *h_num = j;
+
+    *h_num = total_elements;
 }
 
 
@@ -211,18 +242,14 @@ void travel_phase_d(Triangulation &tr, Triangulation &output_tr, bit_vector_d *m
     #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: travel_phase_d(n = " << n_halfedges << ") llamado." << std::endl;
     #endif
-    
-    // Copiamos los halfedges de 'tr' (entrada) a 'output_tr' (salida)
-    #pragma omp parallel for
+
+    // Fused loop: copy and assign next/prev in a single pass to eliminate redundant memory traffic and barriers
+    #pragma omp parallel for schedule(static)
     for (int off = 0; off < n_halfedges; off++){
-        output_tr.HalfEdges[off] = tr.HalfEdges[off];
-    }
-    
-    #pragma omp parallel for
-    for (int off = 0; off < n_halfedges; off++){
-        // Modificamos los punteros next/prev en la *copia de salida*
-        output_tr.HalfEdges[off].next = search_next_frontier_edge_d(tr, frontier_edges, tr.next(off));
-        output_tr.HalfEdges[off].prev = search_prev_frontier_edge_d(tr, frontier_edges, tr.prev(off));
+        halfEdge he = tr.HalfEdges[off];
+        he.next = search_next_frontier_edge_d(tr, frontier_edges, he.next);
+        he.prev = search_prev_frontier_edge_d(tr, frontier_edges, he.prev);
+        output_tr.HalfEdges[off] = he;
     }
 }
 
@@ -242,10 +269,6 @@ inline int calculate_middle_edge_d(Triangulation &tr, bit_vector_d *frontier_edg
 
 //Return the number of frontier edges of a vertex
 inline int count_frontier_edges_d(Triangulation &tr, bit_vector_d *frontier_edges, int v){
-    
-    // CORRECCIÓN DE BUG: El bucle debe comparar con la arista inicial, no
-    // llamar a edge_of_vertex(v) en cada iteración.
-    
     int e_start = tr.edge_of_vertex(v);
     if (e_start == -1) return 0; // Vértice aislado
 
@@ -255,34 +278,51 @@ inline int count_frontier_edges_d(Triangulation &tr, bit_vector_d *frontier_edge
         if(frontier_edges[e] == 1)
             count++;
         e = tr.CW_edge_to_vertex(e);
-    } while(e != e_start); // <--- Bucle corregido
+    } while(e != e_start);
     
     return count;
 }
 
-// new repair phase (modificado para usar int*)
+// new repair phase: single-pass 1-ring traversal with degree and frontier detection fused
 void label_extra_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges, int *seed_edges, int n_vertices){
     #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: label_extra_frontier_edge_d(n_vertices = " << n_vertices << ") llamado." << std::endl;
     #endif
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(static)
     for (int v = 0; v < n_vertices; v++){
+        int e_start = tr.edge_of_vertex(v);
+        if (e_start == -1) continue;
 
-        if(count_frontier_edges_d(tr, frontier_edges, v) == 1){
-            int middle_edge = calculate_middle_edge_d(tr, frontier_edges, v);
+        int e = e_start;
+        int count = 0;
+        int degree = 0;
+        int frontier_edge = -1;
 
-            int t1 = middle_edge;
-            int t2 = tr.twin(middle_edge);
+        do {
+            degree++;
+            if (frontier_edges[e] == 1) {
+                count++;
+                frontier_edge = e;
+            }
+            e = tr.CW_edge_to_vertex(e);
+        } while (e != e_start);
 
-            //edges of middle-edge are labeled as frontier-edge
-             
+        if (count == 1) {
+            int internal_edges = degree - 1;
+            int adv = (internal_edges % 2 == 0) ? internal_edges / 2 - 1 : internal_edges / 2;
+            int nxt = tr.CW_edge_to_vertex(frontier_edge);
+            while (adv > 0) {
+                nxt = tr.CW_edge_to_vertex(nxt);
+                adv--;
+            }
+
+            int t1 = nxt;
+            int t2 = tr.twin(nxt);
+
             frontier_edges[t1] = 1;
-             
             frontier_edges[t2] = 1;
 
-             
             seed_edges[t1] = 1;
-             
             seed_edges[t2] = 1;
         }
     }  
