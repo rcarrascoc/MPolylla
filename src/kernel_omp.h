@@ -286,23 +286,14 @@ void travel_phase_d(Triangulation &tr, Triangulation &output_tr, bit_vector_d *m
         int start = t * chunk_size + std::min(t, remainder);
         int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
 
-        // Copiamos los halfedges de 'tr' (entrada) a 'output_tr' (salida)
+        // Fused: copy and assign next/prev in a single pass to eliminate redundant memory traffic and barriers
         #pragma omp task firstprivate(start, end)
         {
             for (int off = start; off < end; off++){
-                output_tr.HalfEdges[off] = tr.HalfEdges[off];
-            }
-        }
-        
-        #pragma omp taskwait
-        #pragma omp barrier
-        
-        // Modificamos los punteros next/prev en la *copia de salida*
-        #pragma omp task firstprivate(start, end)
-        {
-            for (int off = start; off < end; off++){
-                output_tr.HalfEdges[off].next = search_next_frontier_edge_d(tr, frontier_edges, tr.next(off));
-                output_tr.HalfEdges[off].prev = search_prev_frontier_edge_d(tr, frontier_edges, tr.prev(off));
+                halfEdge he = tr.HalfEdges[off];
+                he.next = search_next_frontier_edge_d(tr, frontier_edges, he.next);
+                he.prev = search_prev_frontier_edge_d(tr, frontier_edges, he.prev);
+                output_tr.HalfEdges[off] = he;
             }
         }
         #pragma omp taskwait
@@ -325,10 +316,6 @@ inline int calculate_middle_edge_d(Triangulation &tr, bit_vector_d *frontier_edg
 
 //Return the number of frontier edges of a vertex
 inline int count_frontier_edges_d(Triangulation &tr, bit_vector_d *frontier_edges, int v){
-    
-    // CORRECCIÓN DE BUG: El bucle debe comparar con la arista inicial, no
-    // llamar a edge_of_vertex(v) en cada iteración.
-    
     int e_start = tr.edge_of_vertex(v);
     if (e_start == -1) return 0; // Vértice aislado
 
@@ -338,12 +325,12 @@ inline int count_frontier_edges_d(Triangulation &tr, bit_vector_d *frontier_edge
         if(frontier_edges[e] == 1)
             count++;
         e = tr.CW_edge_to_vertex(e);
-    } while(e != e_start); // <--- Bucle corregido
+    } while(e != e_start);
     
     return count;
 }
 
-// new repair phase (modificado para usar int*)
+// new repair phase (single-pass 1-ring traversal with degree and frontier detection fused)
 void label_extra_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges, bit_vector_d *seed_edges, int n_vertices){
     #ifdef DEBUG 
     std::cout << "[DEBUG] kernel_omp.h: label_extra_frontier_edge_d(n_vertices = " << n_vertices << ") llamado." << std::endl;
@@ -352,29 +339,51 @@ void label_extra_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges
     {
         int num_threads = omp_get_num_threads();
         int t = omp_get_thread_num();
-                int chunk_size = n_vertices / num_threads;
-                int remainder = n_vertices % num_threads;
-                int start = t * chunk_size + std::min(t, remainder);
-                int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
+        int chunk_size = n_vertices / num_threads;
+        int remainder = n_vertices % num_threads;
+        int start = t * chunk_size + std::min(t, remainder);
+        int end = (t + 1) * chunk_size + std::min(t + 1, remainder);
 
-                #pragma omp task firstprivate(start, end)
-                {
-                    for (int v = start; v < end; v++){
-                        if(count_frontier_edges_d(tr, frontier_edges, v) == 1){
-                            int middle_edge = calculate_middle_edge_d(tr, frontier_edges, v);
+        #pragma omp task firstprivate(start, end)
+        {
+            for (int v = start; v < end; v++){
+                int e_start = tr.edge_of_vertex(v);
+                if (e_start == -1) continue;
 
-                            int t1 = middle_edge;
-                            int t2 = tr.twin(middle_edge);
+                int e = e_start;
+                int count = 0;
+                int degree = 0;
+                int frontier_edge = -1;
 
-                            //edges of middle-edge are labeled as frontier-edge
-                            frontier_edges[t1] = 1;
-                            frontier_edges[t2] = 1;
-
-                            seed_edges[t1] = 1;
-                            seed_edges[t2] = 1;
-                        }
+                do {
+                    degree++;
+                    if (frontier_edges[e] == 1) {
+                        count++;
+                        frontier_edge = e;
                     }
+                    e = tr.CW_edge_to_vertex(e);
+                } while (e != e_start);
+
+                if (count == 1) {
+                    int internal_edges = degree - 1;
+                    int adv = (internal_edges % 2 == 0) ? internal_edges / 2 - 1 : internal_edges / 2;
+                    int nxt = tr.CW_edge_to_vertex(frontier_edge);
+                    while (adv > 0) {
+                        nxt = tr.CW_edge_to_vertex(nxt);
+                        adv--;
+                    }
+
+                    int t1 = nxt;
+                    int t2 = tr.twin(nxt);
+
+                    frontier_edges[t1] = 1;
+                    frontier_edges[t2] = 1;
+
+                    seed_edges[t1] = 1;
+                    seed_edges[t2] = 1;
                 }
+            }
+        }
         #pragma omp taskwait
     }  
 }
