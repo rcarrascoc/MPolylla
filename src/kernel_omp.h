@@ -16,29 +16,12 @@
 
 // Here starts the "gpu" code!!!!!!!
 
-typedef int bit_vector_d;
-
-// NOTA: Las funciones 'inline' 'twin_d', 'next_d', 'prev_d', 'origin_d', etc.,
-// han sido eliminadas. Ahora usaremos los métodos de la clase Triangulation,
-// como tr.twin(e), tr.next(e), etc.
-
-// Las funciones 'kernel' ahora toman una referencia a la clase Triangulation
-// para poder llamar a sus métodos.
-
-// --- Implementación de funciones auxiliares que SÍ estaban en kernel.cu ---
-
-inline int Equality(double a, double b, double epsilon) {
-  return fabs(a - b) < epsilon;
-}
- 
-inline int GreaterEqualthan(double a, double b, double epsilon){
-    return Equality(a,b,epsilon) || a > b;
-}
+#include <cstdint>
+typedef uint8_t bit_vector_d;
 
 // Calcula el borde más largo de un triángulo (cara)
 // 'e' es *cualquier* half-edge de esa cara.
 inline int compute_max_edge_d(Triangulation &tr, int e){
-    double epsion = 0.0000000001f;
     int e_next = tr.next(e);
     int e_prev = tr.prev(e);
     int v0 = tr.origin(e);
@@ -57,78 +40,70 @@ inline int compute_max_edge_d(Triangulation &tr, int e){
     double dy2 = tr.Vertices[v2].y - tr.Vertices[v0].y;
     double l2 = dx2 * dx2 + dy2 * dy2;
 
-   if( (GreaterEqualthan(l0,l1,epsion) && GreaterEqualthan(l1,l2,epsion)) || ( GreaterEqualthan(l0,l2,epsion) && GreaterEqualthan(l2,l1,epsion)))
-   {
-           return e;
-   }
-   else if((GreaterEqualthan(l1,l0,epsion) && GreaterEqualthan(l0,l2,epsion)) || ( GreaterEqualthan(l1,l2,epsion) && GreaterEqualthan(l2,l0,epsion)))
-   {
-           return e_next;
-   }
-   else
-   {
-           return e_prev;
-   }
+    if (l0 >= l1 && l0 >= l2)
+        return e;
+    else if (l1 >= l0 && l1 >= l2)
+        return e_next;
+    else
+        return e_prev;
 }
 
 inline bool is_frontier_edge_d(Triangulation &tr, bit_vector_d *max_edges, const int e) {
     int twin = tr.twin(e);
     bool is_border_edge = tr.is_border_face(e) || tr.is_border_face(twin);
     bool is_not_max_edge = !(max_edges[e] || max_edges[twin]);
-    if(is_border_edge || is_not_max_edge)
-        return 1;
-    else
-        return 0;
+    return (is_border_edge || is_not_max_edge);
 }
 
 void label_phase(Triangulation &tr, bit_vector_d *max_edges, bit_vector_d *frontier_edges, int n){
-    #ifdef DEBUG 
-    std::cout << "[DEBUG] kernel_omp.h: label_phase(n = " << n << ") llamado." << std::endl;
-    #endif
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(guided)
     for (int off = 0; off < n; off++){
-        frontier_edges[off] = 0;
-        if(is_frontier_edge_d(tr, max_edges, off))
-            frontier_edges[off] = 1;
+        frontier_edges[off] = is_frontier_edge_d(tr, max_edges, off) ? 1 : 0;
     }
 }
 
 void label_edges_max_d(Triangulation &tr, bit_vector_d *output, int n_faces) {
-    #ifdef DEBUG 
-    std::cout << "[DEBUG] kernel_omp.h: label_edges_max_d(n_faces = " << n_faces << ") llamado." << std::endl;
-    #endif
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(guided)
     for(int off = 0; off < n_faces; off++) {
-        // tr.incident_halfedge(off) es 3*off
         int edge_max_index = compute_max_edge_d(tr, tr.incident_halfedge(off));
-        
-         
         output[edge_max_index] = 1;
     }
 }
 
 inline bool is_seed_edge_d(Triangulation &tr, bit_vector_d *max_edges, int e){
     int twin = tr.twin(e);
-
-    bool is_terminal_edge = (tr.is_interior_face(twin) &&  (max_edges[e] && max_edges[twin]) );
+    bool is_terminal_edge = (tr.is_interior_face(twin) && (max_edges[e] && max_edges[twin]));
     bool is_terminal_border_edge = (tr.is_border_face(twin) && max_edges[e]);
-
-    if( (is_terminal_edge && e < twin ) || is_terminal_border_edge){
-        return true;
-    }
-
-    return false;
+    return ((is_terminal_edge && e < twin) || is_terminal_border_edge);
 }
 
-// Modificado para usar 'int' como en GPolylla (en lugar de float)
-void seed_phase_d(Triangulation &tr, bit_vector_d *max_edges, int *seed_edges, int n_halfedges){
-    #ifdef DEBUG 
-    std::cout << "[DEBUG] kernel_omp.h: seed_phase_d(n = " << n_halfedges << ") llamado." << std::endl;
-    #endif
-    #pragma omp parallel for
+void seed_phase_d(Triangulation &tr, bit_vector_d *max_edges, bit_vector_d *seed_edges, int n_halfedges){
+    #pragma omp parallel for schedule(guided)
     for (int off = 0; off < n_halfedges; off++){
         if(tr.is_interior_face(off) && is_seed_edge_d(tr, max_edges, off))
-            seed_edges[off] = 1; // 1 en lugar de 1.0f
+            seed_edges[off] = 1;
+    }
+}
+
+// Fused Frontier + Seed labeling in a single pass over n_halfedges
+void label_frontier_and_seed_d(Triangulation &tr, bit_vector_d *max_edges, bit_vector_d *frontier_edges, bit_vector_d *seed_edges, int n_halfedges){
+    #pragma omp parallel for schedule(guided)
+    for (int off = 0; off < n_halfedges; off++){
+        int twin = tr.twin(off);
+        bool border_e = tr.is_border_face(off);
+        bool border_t = tr.is_border_face(twin);
+        bit_vector_d me = max_edges[off];
+        bit_vector_d mt = max_edges[twin];
+
+        frontier_edges[off] = (border_e || border_t || !(me || mt)) ? 1 : 0;
+
+        if (!border_e) {
+            bool is_terminal_edge = (!border_t && (me && mt) && off < twin);
+            bool is_terminal_border_edge = (border_t && me);
+            if (is_terminal_edge || is_terminal_border_edge) {
+                seed_edges[off] = 1;
+            }
+        }
     }
 }
 
@@ -239,12 +214,7 @@ inline int search_prev_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier
 }
 
 void travel_phase_d(Triangulation &tr, Triangulation &output_tr, bit_vector_d *max_edges, bit_vector_d *frontier_edges, int n_halfedges){
-    #ifdef DEBUG 
-    std::cout << "[DEBUG] kernel_omp.h: travel_phase_d(n = " << n_halfedges << ") llamado." << std::endl;
-    #endif
-
-    // Fused loop: copy and assign next/prev in a single pass to eliminate redundant memory traffic and barriers
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(guided)
     for (int off = 0; off < n_halfedges; off++){
         halfEdge he = tr.HalfEdges[off];
         he.next = search_next_frontier_edge_d(tr, frontier_edges, he.next);
@@ -283,12 +253,9 @@ inline int count_frontier_edges_d(Triangulation &tr, bit_vector_d *frontier_edge
     return count;
 }
 
-// new repair phase: single-pass 1-ring traversal with degree and frontier detection fused
-void label_extra_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges, int *seed_edges, int n_vertices){
-    #ifdef DEBUG 
-    std::cout << "[DEBUG] kernel_omp.h: label_extra_frontier_edge_d(n_vertices = " << n_vertices << ") llamado." << std::endl;
-    #endif
-    #pragma omp parallel for schedule(static)
+// new repair phase: single-pass 1-ring traversal with early exit when count > 1
+void label_extra_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges, bit_vector_d *seed_edges, int n_vertices){
+    #pragma omp parallel for schedule(guided)
     for (int v = 0; v < n_vertices; v++){
         int e_start = tr.edge_of_vertex(v);
         if (e_start == -1) continue;
@@ -302,6 +269,7 @@ void label_extra_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges
             degree++;
             if (frontier_edges[e] == 1) {
                 count++;
+                if (count > 1) break;
                 frontier_edge = e;
             }
             e = tr.CW_edge_to_vertex(e);
@@ -328,12 +296,8 @@ void label_extra_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges
     }  
 }
 
-// Modificado para usar int*
-void search_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges,  int *seed_edges, int n_halfedges) {
-    #ifdef DEBUG 
-    std::cout << "[DEBUG] kernel_omp.h: search_frontier_edge_d(n = " << n_halfedges << ") llamado." << std::endl;
-    #endif
-    #pragma omp parallel for
+void search_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges, bit_vector_d *seed_edges, int n_halfedges) {
+    #pragma omp parallel for schedule(guided)
     for (int off = 0; off < n_halfedges; off++){
         if(seed_edges[off] == 1){
             int nxt = off;
@@ -344,18 +308,13 @@ void search_frontier_edge_d(Triangulation &tr, bit_vector_d *frontier_edges,  in
             if(nxt != off)
                 seed_edges[off] = 0;
             
-             
             seed_edges[nxt] = 1;
         }
     }
 }
 
-// Modificado para usar int*
-void overwrite_seed_d(Triangulation &tr, int *seed_edges, int n_halfedges){
-    #ifdef DEBUG 
-    std::cout << "[DEBUG] kernel_omp.h: overwrite_seed_d(n = " << n_halfedges << ") llamado." << std::endl;
-    #endif
-    #pragma omp parallel for
+void overwrite_seed_d(Triangulation &tr, bit_vector_d *seed_edges, int n_halfedges){
+    #pragma omp parallel for schedule(guided)
     for (int i = 0; i < n_halfedges; i++){        
         if(seed_edges[i] == 1){
             int e_init = i;
@@ -370,8 +329,34 @@ void overwrite_seed_d(Triangulation &tr, int *seed_edges, int n_halfedges){
                 seed_edges[i] = 0;
             }
             
-             
             seed_edges[min_ind] = 1;
         }
     }  
+}
+
+void search_frontier_edge_candidates_d(Triangulation &tr, bit_vector_d *frontier_edges, bit_vector_d *seed_edges, int *candidates, int n_candidates) {
+    #pragma omp parallel for schedule(guided)
+    for (int idx = 0; idx < n_candidates; idx++){
+        int off = candidates[idx];
+        seed_edges[off] = 0;
+        int nxt = off;
+        while(!frontier_edges[nxt]) {
+            nxt = tr.CW_edge_to_vertex(nxt);
+        }
+        candidates[idx] = nxt;
+    }
+}
+
+void overwrite_seed_candidates_d(Triangulation &tr, bit_vector_d *seed_edges, const int *candidates, int n_candidates) {
+    #pragma omp parallel for schedule(guided)
+    for (int idx = 0; idx < n_candidates; idx++){
+        int e_init = candidates[idx];
+        int min_ind = e_init;
+        int e_curr = tr.next(e_init);
+        while(e_init != e_curr){
+            min_ind = std::min(min_ind, e_curr);
+            e_curr = tr.next(e_curr);
+        }
+        seed_edges[min_ind] = 1;
+    }
 }
