@@ -49,9 +49,9 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
         // (Equivalentes a max_edges_d, frontier_edges_d, seed_edges_ad, seed_edges_bd en GPolylla)
         bit_vector_d *h_max_edges;
         bit_vector_d *h_frontier_edges;
-        bit_vector_d *h_seed_edges;      // bit-vector (1 / 0) -> GPolylla::seed_edges_ad (tipo cambiado a int)
-        int *h_scan;            // scan result -> GPolylla::seed_edges_bd
-        int *h_seed_edges_comp; // compacted result -> GPolylla::seed_edges_d (host copy)
+        bit_vector_d *h_seed_edges; // bit-vector (1 / 0)
+        int *h_scan = nullptr;      // unused (kept as nullptr for compatibility)
+        int *h_seed_edges_comp;     // compacted result
 
         // Miembros de GPolylla necesarios para print_OFF
         int m_polygons = 0; // GPolylla::seed_len
@@ -95,80 +95,45 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
             #endif
 
             timer.Start();
-            label_phase(*mesh_input, h_max_edges, h_frontier_edges, n_halfedges);
+            label_frontier_and_seed_d(*mesh_input, h_max_edges, h_frontier_edges, h_seed_edges, n_halfedges);
             timer.Stop();
             t_label_frontier_edges_d = timer.Elapsed();
-            #ifdef DEBUG
-                        printf ("[TIME] Label frontier edges phase: %f\n", (float) t_label_frontier_edges_d);
-            #endif
-
-            timer.Start();
-            seed_phase_d(*mesh_input, h_max_edges, h_seed_edges, n_halfedges);
-            timer.Stop();
-            t_label_seed_edges_d = timer.Elapsed();
-            #ifdef DEBUG
-                        printf ("[TIME] Label seed edges phase: %f\n", (float) t_label_seed_edges_d);
-            #endif
+            t_label_seed_edges_d = 0;
 
             // --- Fase 4 (Repair) ---
-            #ifdef DEBUG
-                        std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fase 4: Repair (label_extra_frontier_edge_d)..." << std::endl;
-            #endif
             timer.Start();
             label_extra_frontier_edge_d(*mesh_input, h_frontier_edges, h_seed_edges, n_vertices);
             timer.Stop();
             t_label_extra_frontier_edge_d = timer.Elapsed();
-            #ifdef DEBUG
-                        printf ("[TIME] Repair phase (GPolylla 4): %f\n", (float) t_label_extra_frontier_edge_d);
-            #endif
 
             // --- Fase 5 (Travel) ---
-            #ifdef DEBUG
-                        std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fase 5: Travel..." << std::endl;
-            #endif
             timer.Start();
             travel_phase_d(*mesh_input, *mesh_output, h_max_edges, h_frontier_edges, n_halfedges);
             timer.Stop();
             t_traversal_1_d = timer.Elapsed();
-            #ifdef DEBUG
-                        printf ("[TIME] Travel phase (GPolylla 5): %f\n", (float) t_traversal_1_d);
-            #endif
 
-            // --- Fase 6 (Post-Travel Repair) ---
-            #ifdef DEBUG
-                        std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fase 6: Post-Travel Repair..." << std::endl;
-            #endif
+            // --- Fase 6 (Post-Travel Repair on compacted candidates) ---
+            int n_candidates = 0;
             timer.Start();
-            search_frontier_edge_d(*mesh_input, h_frontier_edges, h_seed_edges, n_halfedges);
+            compaction_parallel(h_seed_edges_comp, &n_candidates, h_seed_edges, n_halfedges);
+            timer.Stop();
+            double t_cand_compact = timer.Elapsed();
+
+            timer.Start();
+            search_frontier_edge_candidates_d(*mesh_input, h_frontier_edges, h_seed_edges, h_seed_edges_comp, n_candidates);
             timer.Stop();
             t_traversal_2_d = timer.Elapsed();
-            #ifdef DEBUG
-                        printf ("[TIME] Repair search frontier edge (GPolylla 6): %f\n", (float) t_traversal_2_d);
-            #endif
 
             timer.Start();
-            overwrite_seed_d(*mesh_output, h_seed_edges, n_halfedges);
+            overwrite_seed_candidates_d(*mesh_output, h_seed_edges, h_seed_edges_comp, n_candidates);
             timer.Stop();
             t_overwrite_seed_d = timer.Elapsed();
-            #ifdef DEBUG
-                        printf ("[TIME] Repair overwrite seed (GPolylla 7): %f\n", (float) t_overwrite_seed_d);
-            #endif
 
-
-            // --- Fase 7 (Scan & Compaction) ---
-            #ifdef DEBUG
-                        std::cout << "[DEBUG] mpolylla_omp.h: run: Iniciando Fase 7: Scan y Compaction (Serial)..." << std::endl;
-            #endif
-            
-            // 7.2. COMPACTION (GPolylla: Label seed edges 3)
+            // --- Fase 7 (Final Compaction) ---
             timer.Start();
             compaction_parallel(h_seed_edges_comp, &m_polygons, h_seed_edges, n_halfedges);
             timer.Stop();
-            t_label_seed_compaction_d = timer.Elapsed();
-            #ifdef DEBUG
-                        std::cout << "[DEBUG] mpolylla_omp.h: run: 7.2. " << m_polygons << " polígonos (seeds) contados." << std::endl;
-                        printf ("[TIME] Compaction phase (GPolylla 9): %f\n", (float) t_label_seed_compaction_d);
-            #endif
+            t_label_seed_compaction_d = t_cand_compact + timer.Elapsed();
             
             /*// print frotier_edges for debug
             #ifdef DEBUG
@@ -243,16 +208,16 @@ class Polylla{ // <--- Renombrada de MPolylla a Polylla
             #endif
             h_max_edges = new bit_vector_d[n_halfedges];
             h_frontier_edges = new bit_vector_d[n_halfedges];
-            h_seed_edges = new bit_vector_d[n_halfedges]; // GPolylla::seed_edges_ad (bit-vector)
-            h_scan = new int[n_halfedges];           // GPolylla::seed_edges_bd (scan result)
-            h_seed_edges_comp = new int[n_halfedges]; // GPolylla::seed_edges_d (compacted)
+            h_seed_edges = new bit_vector_d[n_halfedges];
+            h_scan = nullptr;
+            h_seed_edges_comp = new int[n_halfedges];
 
-            // 4. Inicializar memoria a 0
-            memset(h_max_edges, 0, sizeof(bit_vector_d)*n_halfedges);
-            memset(h_frontier_edges, 0, sizeof(bit_vector_d)*n_halfedges);
-            memset(h_seed_edges, 0, sizeof(bit_vector_d)*n_halfedges); 
-            memset(h_scan, 0, sizeof(int)*n_halfedges);
-            memset(h_seed_edges_comp, 0, sizeof(int)*n_halfedges);
+            // 4. Inicializar memoria a 0 en paralelo (first-touch) solo donde hace falta
+            #pragma omp parallel for schedule(static)
+            for (int i = 0; i < n_halfedges; i++) {
+                h_max_edges[i] = 0;
+                h_seed_edges[i] = 0;
+            }
             #ifdef DEBUG
                         std::cout << "[DEBUG] Polylla::Constructor: Buffers alocados e inicializados." << std::endl;
             #endif
